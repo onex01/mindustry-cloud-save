@@ -1,0 +1,72 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.onex01'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    maven { url 'https://oss.sonatype.org/content/repositories/releases/' }
+    maven { url 'https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository' }
+}
+
+ext {
+    mindustryVersion = 'v146'
+    arcVersion = 'v146'
+}
+
+dependencies {
+    compileOnly "com.github.Anuken.Arc:arc-core:$arcVersion"
+    compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
+    
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
+
+// ПРАВИЛЬНЫЙ синтаксис для Gradle 9.x
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+jar {
+    archiveFileName = "cloud-save-mod.jar"
+    
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    from(rootProject.file("mod.hjson")) {
+        into ""
+    }
+    
+    from("bundles") {
+        into "bundles"
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    manifest {
+        attributes 'Implementation-Title': archiveFileName,
+                   'Implementation-Version': archiveVersion
+    }
+}
+
+task deploy(type: Jar) {
+    dependsOn jar
+    archiveFileName = "cloud-save-mod-deploy.jar"
+    from zipTree(jar.archiveFile)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

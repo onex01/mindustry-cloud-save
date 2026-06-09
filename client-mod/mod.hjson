@@ -1,0 +1,9 @@
+name: "cloud-save"
+displayName: "☁️ Cloud Save Sync"
+author: "OneX01"
+main: "com.onex01.cloudsave.CloudSaveMod"
+description: "Sync your Mindustry saves to the cloud and play from any device!"
+version: "1.0.0"
+minGameVersion: "157"
+hidden: false
+java: true
