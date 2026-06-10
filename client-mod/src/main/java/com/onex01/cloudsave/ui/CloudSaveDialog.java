@@ -4,7 +4,6 @@ import arc.Core;
 import arc.scene.ui.Dialog;
 import arc.scene.ui.TextField;
 import arc.scene.ui.layout.Table;
-import arc.util.Http;
 import arc.util.Log;
 import arc.util.Timer;
 import arc.util.serialization.Jval;
@@ -15,6 +14,11 @@ import mindustry.gen.Icon;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 public class CloudSaveDialog extends Dialog {
     
@@ -25,7 +29,7 @@ public class CloudSaveDialog extends Dialog {
     private TextField statusLabel;
     
     public CloudSaveDialog() {
-        super("☁️ Cloud Saves");
+        super(Core.bundle.get("mod.cloudsave.title"));
         
         addCloseButton();
         closeOnBack();
@@ -36,6 +40,9 @@ public class CloudSaveDialog extends Dialog {
     private void setupUI() {
         cont.clear();
         cont.margin(10f);
+        
+        // ВАЖНО: Очищаем кнопки перед добавлением новых!
+        buttons.clear();
         
         if (!CloudSaveMod.getInstance().getConfigManager().isLoggedIn()) {
             showLoginUI();
@@ -51,7 +58,7 @@ public class CloudSaveDialog extends Dialog {
         loginTable.defaults().pad(10);
         
         // Поле для сервера
-        loginTable.add("Сервер API:").left().row();
+        loginTable.add(Core.bundle.get("mod.cloudsave.server")).left().row();
         serverField = new TextField(CloudSaveMod.getInstance().getConfigManager().getServerUrl());
         serverField.setMessageText("http://localhost:3000");
         loginTable.add(serverField).width(400).row();
@@ -59,17 +66,17 @@ public class CloudSaveDialog extends Dialog {
         loginTable.add().height(10).row();
         
         // Поле для логина
-        loginTable.add("Имя пользователя:").left().row();
+        loginTable.add(Core.bundle.get("mod.cloudsave.username")).left().row();
         usernameField = new TextField("");
-        usernameField.setMessageText("Введите логин");
+        usernameField.setMessageText(Core.bundle.get("mod.cloudsave.username.placeholder"));
         loginTable.add(usernameField).width(400).row();
         
         // Поле для пароля
-        loginTable.add("Пароль:").left().row();
+        loginTable.add(Core.bundle.get("mod.cloudsave.password")).left().row();
         passwordField = new TextField("");
         passwordField.setPasswordMode(true);
         passwordField.setPasswordCharacter('•');
-        passwordField.setMessageText("Введите пароль");
+        passwordField.setMessageText(Core.bundle.get("mod.cloudsave.password.placeholder"));
         loginTable.add(passwordField).width(400).row();
         
         loginTable.add().height(20).row();
@@ -84,11 +91,11 @@ public class CloudSaveDialog extends Dialog {
         // Кнопки
         buttons.defaults().size(150, 50).pad(5);
         
-        buttons.button("Регистрация", () -> {
+        buttons.button(Core.bundle.get("mod.cloudsave.register"), () -> {
             register();
         });
         
-        buttons.button("Вход", () -> {
+        buttons.button(Core.bundle.get("mod.cloudsave.login"), () -> {
             login();
         });
     }
@@ -99,8 +106,8 @@ public class CloudSaveDialog extends Dialog {
         String username = CloudSaveMod.getInstance().getConfigManager().getUsername();
         
         Table headerTable = new Table();
-        headerTable.add("Пользователь: " + username).left().pad(10);
-        headerTable.button("Выйти", () -> {
+        headerTable.add(Core.bundle.get("mod.cloudsave.user") + ": " + username).left().pad(10);
+        headerTable.button(Core.bundle.get("mod.cloudsave.logout"), () -> {
             CloudSaveMod.getInstance().getConfigManager().logout();
             setupUI();
         }).size(100, 40).right().pad(10);
@@ -112,11 +119,11 @@ public class CloudSaveDialog extends Dialog {
         Table actionsTable = new Table();
         actionsTable.defaults().size(150, 50).pad(5);
         
-        actionsTable.button("Загрузить в облако", Icon.upOpen, () -> {
+        actionsTable.button(Core.bundle.get("mod.cloudsave.upload"), Icon.upOpen, () -> {
             uploadCurrentSave();
         });
         
-        actionsTable.button("Обновить", Icon.refresh, () -> {
+        actionsTable.button(Core.bundle.get("mod.cloudsave.refresh"), Icon.refresh, () -> {
             loadSavesList();
         });
         
@@ -139,11 +146,11 @@ public class CloudSaveDialog extends Dialog {
         String password = passwordField.getText();
         
         if (username.isEmpty() || password.isEmpty()) {
-            setStatus("Заполните все поля");
+            setStatus(Core.bundle.get("mod.cloudsave.error.fields"));
             return;
         }
         
-        setStatus("Регистрация...");
+        setStatus(Core.bundle.get("mod.cloudsave.status.registering"));
         
         CloudSaveMod.getInstance().getConfigManager().setServerUrl(serverUrl);
         
@@ -152,32 +159,30 @@ public class CloudSaveDialog extends Dialog {
         
         Log.info("[CloudSave] Регистрация: " + url);
         
-        // Запускаем в отдельном потоке, чтобы не блокировать UI
         new Thread(() -> {
             try {
-                // Используем стандартный Java HTTP клиент
-                java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(url))
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
                     .header("Content-Type", "application/json")
-                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json))
-                    .timeout(java.time.Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .timeout(Duration.ofSeconds(10))
                     .build();
                 
-                java.net.http.HttpResponse<String> response = client.send(request, 
-                    java.net.http.HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = client.send(request, 
+                    HttpResponse.BodyHandlers.ofString());
                 
                 Log.info("[CloudSave] Ответ сервера: " + response.statusCode() + " - " + response.body());
                 
                 Core.app.post(() -> {
                     try {
                         if (response.statusCode() == 201 || response.statusCode() == 200) {
-                            setStatus("Регистрация успешна! Теперь войдите.");
+                            setStatus(Core.bundle.get("mod.cloudsave.success.register"));
                         } else {
-                            setStatus("Ошибка: " + response.body());
+                            setStatus(Core.bundle.get("mod.cloudsave.error") + ": " + response.body());
                         }
                     } catch (Exception e) {
-                        setStatus("Ошибка: " + e.getMessage());
+                        setStatus(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
                     }
                 });
                 
@@ -185,23 +190,23 @@ public class CloudSaveDialog extends Dialog {
                 Log.err("[CloudSave] Ошибка регистрации: " + e.getMessage());
                 e.printStackTrace();
                 Core.app.post(() -> {
-                    setStatus("Ошибка: " + e.getMessage());
+                    setStatus(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
                 });
             }
         }).start();
     }
-
+    
     private void login() {
         String serverUrl = serverField.getText();
         String username = usernameField.getText();
         String password = passwordField.getText();
         
         if (username.isEmpty() || password.isEmpty()) {
-            setStatus("Заполните все поля");
+            setStatus(Core.bundle.get("mod.cloudsave.error.fields"));
             return;
         }
         
-        setStatus("Вход...");
+        setStatus(Core.bundle.get("mod.cloudsave.status.logging"));
         
         CloudSaveMod.getInstance().getConfigManager().setServerUrl(serverUrl);
         
@@ -210,26 +215,24 @@ public class CloudSaveDialog extends Dialog {
         
         Log.info("[CloudSave] Вход: " + url);
         
-        // Запускаем в отдельном потоке
         new Thread(() -> {
             try {
-                java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(url))
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
                     .header("Content-Type", "application/json")
-                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json))
-                    .timeout(java.time.Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .timeout(Duration.ofSeconds(10))
                     .build();
                 
-                java.net.http.HttpResponse<String> response = client.send(request, 
-                    java.net.http.HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = client.send(request, 
+                    HttpResponse.BodyHandlers.ofString());
                 
                 Log.info("[CloudSave] Ответ сервера: " + response.statusCode() + " - " + response.body());
                 
                 Core.app.post(() -> {
                     try {
                         if (response.statusCode() == 200) {
-                            // Парсим JSON ответ
                             String responseBody = response.body();
                             Jval responseJson = Jval.read(responseBody);
                             
@@ -238,7 +241,7 @@ public class CloudSaveDialog extends Dialog {
                                 CloudSaveMod.getInstance().getConfigManager().setAuthToken(token);
                                 CloudSaveMod.getInstance().getConfigManager().setUsername(username);
                                 
-                                setStatus("Успешный вход!");
+                                setStatus(Core.bundle.get("mod.cloudsave.success.login"));
                                 
                                 Timer.schedule(() -> {
                                     Core.app.post(() -> {
@@ -246,14 +249,14 @@ public class CloudSaveDialog extends Dialog {
                                     });
                                 }, 0.5f);
                             } else {
-                                setStatus("Ошибка: токен не получен");
+                                setStatus(Core.bundle.get("mod.cloudsave.error.token"));
                             }
                         } else {
-                            setStatus("Ошибка: " + response.body());
+                            setStatus(Core.bundle.get("mod.cloudsave.error") + ": " + response.body());
                         }
                     } catch (Exception e) {
                         Log.err("[CloudSave] Ошибка парсинга: " + e.getMessage());
-                        setStatus("Ошибка: " + e.getMessage());
+                        setStatus(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
                     }
                 });
                 
@@ -261,7 +264,7 @@ public class CloudSaveDialog extends Dialog {
                 Log.err("[CloudSave] Ошибка входа: " + e.getMessage());
                 e.printStackTrace();
                 Core.app.post(() -> {
-                    setStatus("Ошибка: " + e.getMessage());
+                    setStatus(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
                 });
             }
         }).start();
@@ -269,23 +272,23 @@ public class CloudSaveDialog extends Dialog {
     
     private void loadSavesList() {
         savesTable.clear();
-        savesTable.add("Загрузка...").pad(20);
+        savesTable.add(Core.bundle.get("mod.cloudsave.status.loading")).pad(20);
         
         String url = CloudSaveMod.getInstance().getConfigManager().getServerUrl() + "/api/saves";
         String token = CloudSaveMod.getInstance().getConfigManager().getAuthToken();
         
         new Thread(() -> {
             try {
-                java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(url))
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
                     .header("Authorization", "Bearer " + token)
                     .GET()
-                    .timeout(java.time.Duration.ofSeconds(10))
+                    .timeout(Duration.ofSeconds(10))
                     .build();
                 
-                java.net.http.HttpResponse<String> response = client.send(request, 
-                    java.net.http.HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = client.send(request, 
+                    HttpResponse.BodyHandlers.ofString());
                 
                 Core.app.post(() -> {
                     try {
@@ -295,13 +298,13 @@ public class CloudSaveDialog extends Dialog {
                         savesTable.clear();
                         
                         if (saves == null || saves.asArray().size == 0) {
-                            savesTable.add("Нет облачных сохранений").pad(20);
+                            savesTable.add(Core.bundle.get("mod.cloudsave.saves.empty")).pad(20);
                             return;
                         }
                         
                         for (Jval save : saves.asArray()) {
                             int id = save.getInt("id", 0);
-                            String name = save.getString("name", "Без названия");
+                            String name = save.getString("name", Core.bundle.get("mod.cloudsave.saves.unnamed"));
                             String date = save.getString("created_at", "");
                             
                             Table row = new Table();
@@ -310,7 +313,7 @@ public class CloudSaveDialog extends Dialog {
                             row.add(name).left().width(200);
                             row.add(date.length() >= 10 ? date.substring(0, 10) : date).left().width(100);
                             
-                            row.button("Скачать", Icon.download, () -> {
+                            row.button(Core.bundle.get("mod.cloudsave.download"), Icon.download, () -> {
                                 downloadSave(id, name);
                             }).size(100, 40);
                             
@@ -319,14 +322,14 @@ public class CloudSaveDialog extends Dialog {
                         
                     } catch (Exception e) {
                         savesTable.clear();
-                        savesTable.add("Ошибка: " + e.getMessage()).pad(20);
+                        savesTable.add(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage()).pad(20);
                     }
                 });
                 
             } catch (Exception e) {
                 Core.app.post(() -> {
                     savesTable.clear();
-                    savesTable.add("Ошибка: " + e.getMessage()).pad(20);
+                    savesTable.add(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage()).pad(20);
                 });
             }
         }).start();
@@ -337,7 +340,7 @@ public class CloudSaveDialog extends Dialog {
         File[] saveFiles = savesDir.listFiles((dir, name) -> name.endsWith(".msav"));
         
         if (saveFiles == null || saveFiles.length == 0) {
-            Vars.ui.showInfo("Нет сохранений для загрузки");
+            Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.error.nosaves"));
             return;
         }
         
@@ -348,76 +351,92 @@ public class CloudSaveDialog extends Dialog {
             }
         }
         
-        String saveName = latestSave.getName().replace(".msav", "");
-        String url = CloudSaveMod.getInstance().getConfigManager().getServerUrl() + "/api/saves";
-        String token = CloudSaveMod.getInstance().getConfigManager().getAuthToken();
+        // Создаём final-копии для использования в лямбде
+        final File finalSave = latestSave;
+        final String saveName = latestSave.getName().replace(".msav", "");
+        final String url = CloudSaveMod.getInstance().getConfigManager().getServerUrl() + "/api/saves";
+        final String token = CloudSaveMod.getInstance().getConfigManager().getAuthToken();
         
-        Vars.ui.showInfo("Загрузка сохранения...");
+        Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.status.uploading"));
         
-        try {
-            byte[] fileBytes = java.nio.file.Files.readAllBytes(latestSave.toPath());
-            
-            // Кодируем файл в Base64
-            String base64Content = java.util.Base64.getEncoder().encodeToString(fileBytes);
-            
-            // Формируем JSON с base64 контентом
-            String json = "{\"name\":\"" + saveName + "\"," +
-                        "\"filename\":\"" + latestSave.getName() + "\"," +
-                        "\"content\":\"" + base64Content + "\"}";
-            
-            Http.post(url)
-                .content(json)
-                .header("Authorization", "Bearer " + token)
-                .header("Content-Type", "application/json")
-                .error(error -> {
-                    Core.app.post(() -> {
-                        Vars.ui.showInfo("Ошибка загрузки: " + error.getMessage());
-                    });
-                })
-                .submit(result -> {
-                    Core.app.post(() -> {
-                        Vars.ui.showInfo("Сохранение загружено в облако!");
+        new Thread(() -> {
+            try {
+                byte[] fileBytes = java.nio.file.Files.readAllBytes(finalSave.toPath());
+                String base64Content = java.util.Base64.getEncoder().encodeToString(fileBytes);
+                
+                String json = "{\"name\":\"" + saveName + "\"," +
+                            "\"filename\":\"" + finalSave.getName() + "\"," +
+                            "\"content\":\"" + base64Content + "\"}";
+                
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
+                
+                HttpResponse<String> response = client.send(request, 
+                    HttpResponse.BodyHandlers.ofString());
+                
+                Core.app.post(() -> {
+                    if (response.statusCode() == 201 || response.statusCode() == 200) {
+                        Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.success.upload"));
                         loadSavesList();
-                    });
+                    } else {
+                        Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.error") + ": " + response.body());
+                    }
                 });
-            
-        } catch (IOException e) {
-            Vars.ui.showInfo("Ошибка чтения файла: " + e.getMessage());
-        }
+                
+            } catch (Exception e) {
+                Core.app.post(() -> {
+                    Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
+                });
+            }
+        }).start();
     }
     
     private void downloadSave(int saveId, String saveName) {
         String url = CloudSaveMod.getInstance().getConfigManager().getServerUrl() + "/api/saves/" + saveId + "/download";
         String token = CloudSaveMod.getInstance().getConfigManager().getAuthToken();
         
-        Vars.ui.showInfo("Скачивание сохранения...");
+        Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.status.downloading"));
         
-        Http.get(url)
-            .header("Authorization", "Bearer " + token)
-            .error(error -> {
-                Core.app.post(() -> {
-                    Vars.ui.showInfo("Ошибка скачивания: " + error.getMessage());
-                });
-            })
-            .submit(result -> {
+        new Thread(() -> {
+            try {
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + token)
+                    .GET()
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
+                
+                HttpResponse<byte[]> response = client.send(request, 
+                    HttpResponse.BodyHandlers.ofByteArray());
+                
                 Core.app.post(() -> {
                     try {
                         File savesDir = Vars.saveDirectory.file();
                         File destinationFile = new File(savesDir, "cloud_" + saveName + ".msav");
                         
-                        // result.getResult() возвращает byte[]
-                        byte[] fileData = result.getResult();
-                        
                         try (FileOutputStream fos = new FileOutputStream(destinationFile)) {
-                            fos.write(fileData);
+                            fos.write(response.body());
                         }
                         
-                        Vars.ui.showInfo("Сохранение скачано!\nПерезапустите игру для применения.");
+                        Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.success.download"));
                     } catch (Exception e) {
-                        Vars.ui.showInfo("Ошибка сохранения: " + e.getMessage());
+                        Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
                     }
                 });
-            });
+                
+            } catch (Exception e) {
+                Core.app.post(() -> {
+                    Vars.ui.showInfo(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
+                });
+            }
+        }).start();
     }
     
     private void setStatus(String status) {

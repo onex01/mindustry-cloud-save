@@ -37,7 +37,7 @@ public class CloudSaveMod extends Mod {
                     
                     // Добавляем кнопку в главное меню
                     // Используем правильный API из реального мода MindustryToolMod
-                    Vars.ui.menufrag.addButton("☁️ Cloud Saves", Icon.refresh, () -> {
+                    Vars.ui.menufrag.addButton("Cloud Saves", Icon.refresh, () -> {
                         cloudSaveDialog.show();
                     });
                     
