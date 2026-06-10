@@ -90,6 +90,10 @@ public class CloudSaveDialog extends Dialog {
         
         // Кнопки
         buttons.defaults().size(150, 50).pad(5);
+
+        buttons.button("Тест соединения", () -> {
+            testConnection();
+        });
         
         buttons.button(Core.bundle.get("mod.cloudsave.register"), () -> {
             register();
@@ -191,6 +195,45 @@ public class CloudSaveDialog extends Dialog {
                 e.printStackTrace();
                 Core.app.post(() -> {
                     setStatus(Core.bundle.get("mod.cloudsave.error") + ": " + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    // Тестовый метод для проверки соединения
+    private void testConnection() {
+        String serverUrl = serverField.getText();
+        
+        setStatus("Тест соединения...");
+        
+        new Thread(() -> {
+            try {
+                Log.info("[CloudSave] Тест: отправка GET запроса на " + serverUrl);
+                
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(serverUrl))
+                    .GET()
+                    .timeout(Duration.ofSeconds(5))
+                    .build();
+                
+                Log.info("[CloudSave] Тест: отправка запроса...");
+                
+                HttpResponse<String> response = client.send(request, 
+                    HttpResponse.BodyHandlers.ofString());
+                
+                Log.info("[CloudSave] Тест: получен ответ " + response.statusCode());
+                Log.info("[CloudSave] Тест: тело ответа: " + response.body());
+                
+                Core.app.post(() -> {
+                    setStatus("Ответ сервера: " + response.statusCode() + " - " + response.body());
+                });
+                
+            } catch (Exception e) {
+                Log.err("[CloudSave] Тест: ошибка: " + e.getMessage());
+                e.printStackTrace();
+                Core.app.post(() -> {
+                    setStatus("Ошибка: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                 });
             }
         }).start();
@@ -367,6 +410,9 @@ public class CloudSaveDialog extends Dialog {
                 String json = "{\"name\":\"" + saveName + "\"," +
                             "\"filename\":\"" + finalSave.getName() + "\"," +
                             "\"content\":\"" + base64Content + "\"}";
+
+                Log.info("[CloudSave] Отправка POST запроса на: " + url);
+                Log.info("[CloudSave] JSON: " + json);
                 
                 HttpClient client = HttpClient.newHttpClient();
                 HttpRequest request = HttpRequest.newBuilder()
