@@ -96,29 +96,77 @@ app.post('/api/auth/login', (req, res) => {
 
 // 3. Загрузка сохранения (Требует авторизации)
 app.post('/api/saves', authenticateToken, upload.single('saveFile'), (req, res) => {
-    if (!req.file) {
+    const userId = req.user.id;
+    
+    // Проверяем, какой формат данных пришёл
+    if (req.file) {
+        // Старый формат: multipart/form-data
+        const { name } = req.body;
+        const filename = req.file.filename;
+        const fileSize = req.file.size;
+        
+        db.run(
+            `INSERT INTO saves (user_id, name, filename, file_size) VALUES (?, ?, ?, ?)`,
+            [userId, name || 'Без названия', filename, fileSize],
+            function(err) {
+                if (err) {
+                    return res.status(500).json({ error: 'Ошибка при сохранении метаданных в БД' });
+                }
+                res.status(201).json({ 
+                    message: 'Сохранение успешно загружено', 
+                    saveId: this.lastID, 
+                    filename: filename 
+                });
+            }
+        );
+    } else if (req.body.content) {
+        // Новый формат: JSON с base64
+        const { name, filename, content } = req.body;
+        
+        if (!content) {
+            return res.status(400).json({ error: 'Поле content обязательно' });
+        }
+        
+        try {
+            // Декодируем base64
+            const fileBuffer = Buffer.from(content, 'base64');
+            
+            // Генерируем уникальное имя файла
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const savedFilename = uniqueSuffix + '-' + (filename || 'save.msav');
+            
+            const uploadDir = process.env.UPLOAD_DIR || './uploads';
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            
+            const filePath = path.join(uploadDir, savedFilename);
+            
+            // Сохраняем файл
+            fs.writeFileSync(filePath, fileBuffer);
+            
+            db.run(
+                `INSERT INTO saves (user_id, name, filename, file_size) VALUES (?, ?, ?, ?)`,
+                [userId, name || 'Без названия', savedFilename, fileBuffer.length],
+                function(err) {
+                    if (err) {
+                        // Удаляем файл, если не удалось записать в БД
+                        fs.unlinkSync(filePath);
+                        return res.status(500).json({ error: 'Ошибка при сохранении метаданных в БД' });
+                    }
+                    res.status(201).json({ 
+                        message: 'Сохранение успешно загружено', 
+                        saveId: this.lastID, 
+                        filename: savedFilename 
+                    });
+                }
+            );
+        } catch (error) {
+            return res.status(400).json({ error: 'Ошибка декодирования base64: ' + error.message });
+        }
+    } else {
         return res.status(400).json({ error: 'Файл сохранения не предоставлен' });
     }
-
-    const { name } = req.body;
-    const userId = req.user.id;
-    const filename = req.file.filename;
-    const fileSize = req.file.size;
-
-    db.run(
-        `INSERT INTO saves (user_id, name, filename, file_size) VALUES (?, ?, ?, ?)`,
-        [userId, name || 'Без названия', filename, fileSize],
-        function(err) {
-            if (err) {
-                return res.status(500).json({ error: 'Ошибка при сохранении метаданных в БД' });
-            }
-            res.status(201).json({ 
-                message: 'Сохранение успешно загружено', 
-                saveId: this.lastID, 
-                filename: filename 
-            });
-        }
-    );
 });
 
 // 4. Получение списка сохранений пользователя (Требует авторизации)

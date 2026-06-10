@@ -3,36 +3,50 @@ package com.onex01.cloudsave;
 import mindustry.mod.Mod;
 import mindustry.game.EventType;
 import arc.Core;
-import arc.scene.ui.layout.Table;
 import arc.util.Log;
-import arc.util.Timer;
-import com.onex01.cloudsave.ui.CloudSaveUI;
+import arc.util.Http;
+import com.onex01.cloudsave.ui.CloudSaveDialog;
 import com.onex01.cloudsave.util.ConfigManager;
 import mindustry.Vars;
-
-import java.lang.reflect.Field;
+import mindustry.gen.Icon;
 
 public class CloudSaveMod extends Mod {
     
     private static CloudSaveMod instance;
-    private CloudSaveUI cloudSaveUI;
+    private CloudSaveDialog cloudSaveDialog;
     private ConfigManager configManager;
     
     public CloudSaveMod() {
         instance = this;
-        Log.info("[CloudSave] Мод инициализирован!");
+        Log.info("[CloudSave] Мод создан!");
     }
     
     @Override
     public void init() {
         Log.info("[CloudSave] Инициализация мода...");
         
+        // Загружаем конфигурацию
         configManager = new ConfigManager();
-        cloudSaveUI = new CloudSaveUI();
         
         // Подписываемся на событие загрузки клиента
         arc.Events.on(EventType.ClientLoadEvent.class, e -> {
-            Timer.schedule(this::addButtonToMainMenu, 1.0f);
+            Core.app.post(() -> {
+                try {
+                    // Создаём диалог
+                    cloudSaveDialog = new CloudSaveDialog();
+                    
+                    // Добавляем кнопку в главное меню
+                    // Используем правильный API из реального мода MindustryToolMod
+                    Vars.ui.menufrag.addButton("☁️ Cloud Saves", Icon.refresh, () -> {
+                        cloudSaveDialog.show();
+                    });
+                    
+                    Log.info("[CloudSave] Кнопка добавлена в главное меню!");
+                } catch (Exception err) {
+                    Log.err("[CloudSave] Ошибка при инициализации UI: " + err.getMessage());
+                    err.printStackTrace();
+                }
+            });
         });
         
         Log.info("[CloudSave] Мод успешно загружен!");
@@ -40,58 +54,7 @@ public class CloudSaveMod extends Mod {
     
     @Override
     public void loadContent() {
-        // Загрузка контента
-    }
-    
-    private void addButtonToMainMenu() {
-        try {
-            if (Core.scene == null) {
-                Log.warn("[CloudSave] Scene еще не загружена, повторная попытка через 2 секунды...");
-                Timer.schedule(this::addButtonToMainMenu, 2.0f);
-                return;
-            }
-            
-            // Используем reflection для доступа к приватному полю container
-            Table menuTable = findMenuTable();
-            
-            if (menuTable != null) {
-                menuTable.row();
-                menuTable.button("☁️ Cloud Saves", () -> {
-                    cloudSaveUI.show();
-                }).size(200f, 50f).padTop(10f);
-                
-                Log.info("[CloudSave] Кнопка добавлена в главное меню!");
-            } else {
-                Log.warn("[CloudSave] Не удалось найти главное меню!");
-            }
-        } catch (Exception e) {
-            Log.err("[CloudSave] Ошибка при добавлении кнопки: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    
-    private Table findMenuTable() {
-        try {
-            // Используем reflection для доступа к приватному полю container
-            Field containerField = Vars.ui.menufrag.getClass().getDeclaredField("container");
-            containerField.setAccessible(true);
-            return (Table) containerField.get(Vars.ui.menufrag);
-        } catch (Exception e) {
-            Log.err("[CloudSave] Не удалось найти меню через reflection: " + e.getMessage());
-            
-            // Альтернативный способ — ищем через scene
-            try {
-                for (arc.scene.Element elem : Core.scene.getRoot().getChildren()) {
-                    if (elem instanceof Table) {
-                        return (Table) elem;
-                    }
-                }
-            } catch (Exception ex) {
-                Log.err("[CloudSave] Альтернативный способ тоже не сработал: " + ex.getMessage());
-            }
-            
-            return null;
-        }
+        // Загрузка контента (не требуется для нашего мода)
     }
     
     public static CloudSaveMod getInstance() {
@@ -102,7 +65,7 @@ public class CloudSaveMod extends Mod {
         return configManager;
     }
     
-    public CloudSaveUI getCloudSaveUI() {
-        return cloudSaveUI;
+    public CloudSaveDialog getCloudSaveDialog() {
+        return cloudSaveDialog;
     }
 }

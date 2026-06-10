@@ -1,8 +1,7 @@
 package com.onex01.cloudsave.util;
 
 import arc.util.Log;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import arc.util.io.Streams;
 import mindustry.Vars;
 
 import java.io.File;
@@ -13,11 +12,11 @@ import java.io.IOException;
 public class ConfigManager {
     
     private static final String CONFIG_FILE = "cloud-save-config.json";
-    private Config config;
-    private final Gson gson;
+    private String serverUrl = "http://localhost:3000";
+    private String authToken = null;
+    private String username = null;
     
     public ConfigManager() {
-        this.gson = new GsonBuilder().setPrettyPrinting().create();
         loadConfig();
     }
     
@@ -26,24 +25,52 @@ public class ConfigManager {
         
         if (configFile.exists()) {
             try (FileReader reader = new FileReader(configFile)) {
-                config = gson.fromJson(reader, Config.class);
-                Log.info("[CloudSave] Конфигурация загружена");
+                StringBuilder content = new StringBuilder();
+                int ch;
+                while ((ch = reader.read()) != -1) {
+                    content.append((char) ch);
+                }
+                
+                String json = content.toString();
+                // Простой парсинг JSON без библиотек
+                serverUrl = extractValue(json, "serverUrl", "http://localhost:3000");
+                authToken = extractValue(json, "authToken", null);
+                username = extractValue(json, "username", null);
+                
+                Log.info("[CloudSave] Конфигурация загружена. Сервер: " + serverUrl);
             } catch (IOException e) {
                 Log.err("[CloudSave] Ошибка загрузки конфигурации: " + e.getMessage());
-                config = new Config();
             }
         } else {
             Log.info("[CloudSave] Конфигурация не найдена, создание новой...");
-            config = new Config();
             saveConfig();
         }
+    }
+    
+    private String extractValue(String json, String key, String defaultValue) {
+        String searchKey = "\"" + key + "\":\"";
+        int startIndex = json.indexOf(searchKey);
+        if (startIndex == -1) return defaultValue;
+        
+        startIndex += searchKey.length();
+        int endIndex = json.indexOf("\"", startIndex);
+        if (endIndex == -1) return defaultValue;
+        
+        String value = json.substring(startIndex, endIndex);
+        return value.equals("null") ? defaultValue : value;
     }
     
     public void saveConfig() {
         File configFile = getConfigFile();
         
         try (FileWriter writer = new FileWriter(configFile)) {
-            gson.toJson(config, writer);
+            String json = "{\n";
+            json += "  \"serverUrl\": \"" + (serverUrl != null ? serverUrl : "") + "\",\n";
+            json += "  \"authToken\": \"" + (authToken != null ? authToken : "null") + "\",\n";
+            json += "  \"username\": \"" + (username != null ? username : "null") + "\"\n";
+            json += "}";
+            
+            writer.write(json);
             Log.info("[CloudSave] Конфигурация сохранена");
         } catch (IOException e) {
             Log.err("[CloudSave] Ошибка сохранения конфигурации: " + e.getMessage());
@@ -55,46 +82,39 @@ public class ConfigManager {
     }
     
     public String getServerUrl() {
-        return config.serverUrl;
+        return serverUrl;
     }
     
     public void setServerUrl(String url) {
-        config.serverUrl = url;
+        this.serverUrl = url;
         saveConfig();
     }
     
     public String getAuthToken() {
-        return config.authToken;
+        return authToken;
     }
     
     public void setAuthToken(String token) {
-        config.authToken = token;
+        this.authToken = token;
         saveConfig();
     }
     
     public String getUsername() {
-        return config.username;
+        return username;
     }
     
     public void setUsername(String username) {
-        config.username = username;
+        this.username = username;
         saveConfig();
     }
     
     public boolean isLoggedIn() {
-        return config.authToken != null && !config.authToken.isEmpty();
+        return authToken != null && !authToken.isEmpty() && !authToken.equals("null");
     }
     
     public void logout() {
-        config.authToken = null;
-        config.username = null;
+        this.authToken = null;
+        this.username = null;
         saveConfig();
-    }
-    
-    // Внутренний класс для конфигурации
-    private static class Config {
-        String serverUrl = "http://localhost:3000";
-        String authToken = null;
-        String username = null;
     }
 }
