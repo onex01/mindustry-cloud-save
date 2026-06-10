@@ -78,15 +78,8 @@ public class ConfigManager {
     }
     
     private File getConfigFile() {
-        // Для Android и Desktop используем правильную папку
-        File dataDir;
-        if (System.getProperty("os.name").toLowerCase().contains("android")) {
-            // Android
-            dataDir = new File(android.os.Environment.getExternalStorageDirectory(), "Mindustry");
-        } else {
-            // Desktop
-            dataDir = Vars.dataDirectory.file();
-        }
+        // Используем Vars.dataDirectory - работает на всех платформах
+        File dataDir = Vars.dataDirectory.file();
         
         if (!dataDir.exists()) {
             dataDir.mkdirs();
