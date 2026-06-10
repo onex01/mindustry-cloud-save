@@ -78,7 +78,21 @@ public class ConfigManager {
     }
     
     private File getConfigFile() {
-        return new File(Vars.dataDirectory.file().getParentFile(), CONFIG_FILE);
+        // Для Android и Desktop используем правильную папку
+        File dataDir;
+        if (System.getProperty("os.name").toLowerCase().contains("android")) {
+            // Android
+            dataDir = new File(android.os.Environment.getExternalStorageDirectory(), "Mindustry");
+        } else {
+            // Desktop
+            dataDir = Vars.dataDirectory.file();
+        }
+        
+        if (!dataDir.exists()) {
+            dataDir.mkdirs();
+        }
+        
+        return new File(dataDir, CONFIG_FILE);
     }
     
     public String getServerUrl() {

@@ -8,7 +8,7 @@ version = '1.0.0'
 repositories {
     mavenCentral()
     maven { url 'https://jitpack.io' }
-    // Альтернативный репозиторий с прекомпилированными артефактами Mindustry
+    // Альтернативный репозиторий с прекомпилированными версиями Mindustry
     maven { url 'https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository' }
 }
 
@@ -17,14 +17,7 @@ ext {
 }
 
 dependencies {
-    // Mindustry core (включает все Arc зависимости)
     compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
-    
-    // HTTP клиент
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    
-    // JSON
-    implementation 'com.google.code.gson:gson:2.10.1'
 }
 
 java {
@@ -41,12 +34,9 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 17
 }
 
+// Задача для Desktop
 jar {
     archiveFileName = "cloud-save-mod.jar"
-    
-    from {
-        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-    }
     
     from(rootProject.file("mod.hjson")) {
         into ""
@@ -64,9 +54,19 @@ jar {
     }
 }
 
-task deploy(type: Jar) {
-    dependsOn jar
-    archiveFileName = "cloud-save-mod-deploy.jar"
-    from zipTree(jar.archiveFile)
+// Задача для Android (deploy)
+task deploy(type: Jar, dependsOn: jar) {
+    archiveFileName = "cloud-save-mod-android.jar"
+    
+    from sourceSets.main.output
+    
+    from(rootProject.file("mod.hjson")) {
+        into ""
+    }
+    
+    from("bundles") {
+        into "bundles"
+    }
+    
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
