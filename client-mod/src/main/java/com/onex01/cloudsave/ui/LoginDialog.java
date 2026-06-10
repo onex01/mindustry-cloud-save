@@ -3,14 +3,11 @@ package com.onex01.cloudsave.ui;
 import arc.scene.ui.Dialog;
 import arc.scene.ui.TextField;
 import arc.util.Log;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import com.onex01.cloudsave.network.ApiClient;
 
 public class LoginDialog extends Dialog {
     
     private final ApiClient apiClient;
-    private final Gson gson;
     private TextField usernameField;
     private TextField passwordField;
     private Runnable onLoginSuccess;
@@ -19,7 +16,6 @@ public class LoginDialog extends Dialog {
         super("☁️ Cloud Save - Вход");
         
         this.apiClient = apiClient;
-        this.gson = new Gson();
         
         setupUI();
     }
@@ -41,7 +37,6 @@ public class LoginDialog extends Dialog {
         
         cont.add().height(20).row();
         
-        // Кнопки
         buttons.defaults().size(150, 50).pad(5);
         
         buttons.button("Вход", () -> {
@@ -60,7 +55,10 @@ public class LoginDialog extends Dialog {
         String password = passwordField.getText();
         
         if (username.isEmpty() || password.isEmpty()) {
-            new Dialog("Ошибка").text("Заполните все поля").buttons().button("OK", () -> {}).show();
+            Dialog errorDialog = new Dialog("Ошибка");
+            errorDialog.cont.add("Заполните все поля");
+            errorDialog.buttons.button("OK", () -> {});
+            errorDialog.show();
             return;
         }
         
@@ -78,8 +76,10 @@ public class LoginDialog extends Dialog {
             
             @Override
             public void onFailure(String error) {
-                new Dialog("Ошибка входа").text("Ошибка: " + error)
-                    .buttons().button("OK", () -> {}).show();
+                Dialog errorDialog = new Dialog("Ошибка входа");
+                errorDialog.cont.add("Ошибка: " + error);
+                errorDialog.buttons.button("OK", () -> {});
+                errorDialog.show();
             }
         });
     }
@@ -89,7 +89,10 @@ public class LoginDialog extends Dialog {
         String password = passwordField.getText();
         
         if (username.isEmpty() || password.isEmpty()) {
-            new Dialog("Ошибка").text("Заполните все поля").buttons().button("OK", () -> {}).show();
+            Dialog errorDialog = new Dialog("Ошибка");
+            errorDialog.cont.add("Заполните все поля");
+            errorDialog.buttons.button("OK", () -> {});
+            errorDialog.show();
             return;
         }
         
@@ -100,17 +103,20 @@ public class LoginDialog extends Dialog {
             public void onSuccess(String response) {
                 Log.info("[CloudSave] Успешная регистрация!");
                 
-                new Dialog("Успех").text("Регистрация успешна!\nТеперь войдите в систему.")
-                    .buttons().button("OK", () -> {
-                        // Автоматически пытаемся войти
-                        performLogin();
-                    }).show();
+                Dialog successDialog = new Dialog("Успех");
+                successDialog.cont.add("Регистрация успешна!\nТеперь войдите в систему.");
+                successDialog.buttons.button("OK", () -> {
+                    performLogin();
+                });
+                successDialog.show();
             }
             
             @Override
             public void onFailure(String error) {
-                new Dialog("Ошибка регистрации").text("Ошибка: " + error)
-                    .buttons().button("OK", () -> {}).show();
+                Dialog errorDialog = new Dialog("Ошибка регистрации");
+                errorDialog.cont.add("Ошибка: " + error);
+                errorDialog.buttons.button("OK", () -> {});
+                errorDialog.show();
             }
         });
     }

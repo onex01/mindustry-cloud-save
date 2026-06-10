@@ -151,9 +151,16 @@ public class ApiClient {
                     return;
                 }
                 
-                // Сохраняем файл
-                try (var sink = okio.Okio.sink(destinationFile)) {
-                    sink.writeAll(response.body().source());
+                // Сохраняем файл через byteStream
+                try (var inputStream = response.body().byteStream();
+                    var outputStream = new java.io.FileOutputStream(destinationFile)) {
+                    
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
+                    
                     callback.onSuccess("Файл сохранен: " + destinationFile.getAbsolutePath());
                 } catch (Exception e) {
                     callback.onFailure("Ошибка сохранения файла: " + e.getMessage());

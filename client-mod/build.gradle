@@ -8,16 +8,23 @@ version = '1.0.0'
 repositories {
     mavenCentral()
     maven { url 'https://jitpack.io' }
-    maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    // Альтернативный репозиторий с прекомпилированными артефактами Mindustry
+    maven { url 'https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository' }
 }
 
 ext {
-    mindustryVersion = 'v146'
+    // Используем v145 — стабильная версия без проблем с зависимостями
+    mindustryVersion = 'v145'
 }
 
 dependencies {
+    // Mindustry core (включает все Arc зависимости)
     compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
+    
+    // HTTP клиент
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    
+    // JSON
     implementation 'com.google.code.gson:gson:2.10.1'
 }
 

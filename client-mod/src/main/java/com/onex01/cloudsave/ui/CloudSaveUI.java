@@ -4,6 +4,7 @@ import arc.Core;
 import arc.scene.ui.Dialog;
 import arc.scene.ui.Label;
 import arc.scene.ui.TextButton;
+import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Table;
 import arc.util.Log;
 import com.google.gson.Gson;
@@ -20,28 +21,21 @@ public class CloudSaveUI {
     
     private final ApiClient apiClient;
     private final Gson gson;
+    private Label statusLabel; // Сохраняем ссылку на label статуса
     
     public CloudSaveUI() {
         this.apiClient = new ApiClient(CloudSaveMod.getInstance().getConfigManager());
         this.gson = new Gson();
     }
     
-    /**
-     * Показывает главное окно облачных сохранений
-     */
     public void show() {
         if (!CloudSaveMod.getInstance().getConfigManager().isLoggedIn()) {
-            // Если не авторизован, показываем окно входа
             showLoginDialog();
         } else {
-            // Если авторизован, показываем список сохранений
             showSavesList();
         }
     }
     
-    /**
-     * Показывает диалог входа/регистрации
-     */
     private void showLoginDialog() {
         LoginDialog dialog = new LoginDialog(apiClient);
         dialog.setOnLoginSuccess(() -> {
@@ -51,21 +45,16 @@ public class CloudSaveUI {
         dialog.show();
     }
     
-    /**
-     * Показывает список облачных сохранений
-     */
     private void showSavesList() {
         Dialog dialog = new Dialog("☁️ Cloud Saves");
         
         Table content = new Table();
         content.defaults().pad(10);
         
-        // Заголовок с информацией о пользователе
         String username = CloudSaveMod.getInstance().getConfigManager().getUsername();
         content.add("Пользователь: " + username).row();
         content.add().height(10).row();
         
-        // Кнопки действий
         Table buttons = new Table();
         buttons.defaults().size(150, 50).pad(5);
         
@@ -86,23 +75,21 @@ public class CloudSaveUI {
         content.add(buttons).row();
         content.add().height(10).row();
         
-        // Загрузка списка сохранений
-        content.add("Загрузка списка сохранений...").name("status").row();
+        // Сохраняем ссылку на label статуса
+        statusLabel = new Label("Загрузка списка сохранений...");
+        content.add(statusLabel).row();
         
         dialog.cont.add(content).pad(20);
         
+        // Используем поле buttons напрямую (не метод)
         dialog.buttons.defaults().size(150, 50);
         dialog.buttons.button("Закрыть", dialog::hide);
         
         dialog.show();
         
-        // Загружаем список сохранений
         loadSavesList(content);
     }
     
-    /**
-     * Загружает список сохранений с сервера
-     */
     private void loadSavesList(Table content) {
         apiClient.getSaves(new ApiClient.Callback() {
             @Override
@@ -112,15 +99,16 @@ public class CloudSaveUI {
                         JsonObject json = gson.fromJson(response, JsonObject.class);
                         JsonArray saves = json.getAsJsonArray("saves");
                         
-                        // Очищаем статус
-                        content.getCell(content.findActor("status")).setActor(null);
+                        // Очищаем статус через label
+                        if (statusLabel != null) {
+                            statusLabel.setText("");
+                        }
                         
                         if (saves.size() == 0) {
                             content.add("Нет облачных сохранений").row();
                             return;
                         }
                         
-                        // Создаем таблицу для списка
                         Table savesTable = new Table();
                         savesTable.defaults().pad(5);
                         
@@ -147,7 +135,9 @@ public class CloudSaveUI {
                         
                     } catch (Exception e) {
                         Log.err("[CloudSave] Ошибка парсинга списка: " + e.getMessage());
-                        content.getCell(content.findActor("status")).setActor(new Label("Ошибка загрузки"));
+                        if (statusLabel != null) {
+                            statusLabel.setText("Ошибка загрузки");
+                        }
                     }
                 });
             }
@@ -155,26 +145,26 @@ public class CloudSaveUI {
             @Override
             public void onFailure(String error) {
                 Core.app.post(() -> {
-                    content.getCell(content.findActor("status")).setActor(new Label("Ошибка: " + error));
+                    if (statusLabel != null) {
+                        statusLabel.setText("Ошибка: " + error);
+                    }
                 });
             }
         });
     }
     
-    /**
-     * Загружает текущее сохранение в облако
-     */
     private void uploadCurrentSave(Dialog parentDialog) {
-        // Получаем последнее сохранение
         File savesDir = Vars.saveDirectory.file();
         File[] saveFiles = savesDir.listFiles((dir, name) -> name.endsWith(".msav"));
         
         if (saveFiles == null || saveFiles.length == 0) {
-            new Dialog("Ошибка").text("Нет сохранений для загрузки").buttons().button("OK", parentDialog::hide).show();
+            Dialog errorDialog = new Dialog("Ошибка");
+            errorDialog.cont.add("Нет сохранений для загрузки");
+            errorDialog.buttons.button("OK", parentDialog::hide);
+            errorDialog.show();
             return;
         }
         
-        // Берем самое новое сохранение
         File latestSave = saveFiles[0];
         for (File file : saveFiles) {
             if (file.lastModified() > latestSave.lastModified()) {
@@ -188,27 +178,28 @@ public class CloudSaveUI {
             @Override
             public void onSuccess(String response) {
                 Core.app.post(() -> {
-                    new Dialog("Успех").text("Сохранение загружено в облако!")
-                        .buttons().button("OK", () -> {
-                            parentDialog.hide();
-                            showSavesList();
-                        }).show();
+                    Dialog successDialog = new Dialog("Успех");
+                    successDialog.cont.add("Сохранение загружено в облако!");
+                    successDialog.buttons.button("OK", () -> {
+                        parentDialog.hide();
+                        showSavesList();
+                    });
+                    successDialog.show();
                 });
             }
             
             @Override
             public void onFailure(String error) {
                 Core.app.post(() -> {
-                    new Dialog("Ошибка").text("Ошибка загрузки: " + error)
-                        .buttons().button("OK", () -> {}).show();
+                    Dialog errorDialog = new Dialog("Ошибка");
+                    errorDialog.cont.add("Ошибка загрузки: " + error);
+                    errorDialog.buttons.button("OK", () -> {});
+                    errorDialog.show();
                 });
             }
         });
     }
     
-    /**
-     * Скачивает сохранение из облака
-     */
     private void downloadSave(int saveId, String saveName) {
         File savesDir = Vars.saveDirectory.file();
         File destinationFile = new File(savesDir, "cloud_" + saveName + ".msav");
@@ -217,16 +208,20 @@ public class CloudSaveUI {
             @Override
             public void onSuccess(String response) {
                 Core.app.post(() -> {
-                    new Dialog("Успех").text("Сохранение скачано!\nПерезапустите игру для применения.")
-                        .buttons().button("OK", () -> {}).show();
+                    Dialog successDialog = new Dialog("Успех");
+                    successDialog.cont.add("Сохранение скачано!\nПерезапустите игру для применения.");
+                    successDialog.buttons.button("OK", () -> {});
+                    successDialog.show();
                 });
             }
             
             @Override
             public void onFailure(String error) {
                 Core.app.post(() -> {
-                    new Dialog("Ошибка").text("Ошибка скачивания: " + error)
-                        .buttons().button("OK", () -> {}).show();
+                    Dialog errorDialog = new Dialog("Ошибка");
+                    errorDialog.cont.add("Ошибка скачивания: " + error);
+                    errorDialog.buttons.button("OK", () -> {});
+                    errorDialog.show();
                 });
             }
         });
