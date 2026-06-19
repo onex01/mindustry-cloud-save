@@ -1,0 +1,9 @@
+name: "cloud-save"
+displayName: "Cloud Save Sync"
+author: "OneX01"
+main: "com.onex01.cloudsave.CloudSaveMod"
+description: "Would you like to continue playing the campaign on another device? This mod will help you do just that, but it requires a server with a static IP address to store the data."
+version: "0.5.6"
+minGameVersion: "157"
+hidden: false
+java: true
