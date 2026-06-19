@@ -95,6 +95,14 @@ task universalJar(dependsOn: compileJava) {
             }
         }
         
+        // Добавляем иконку мода
+        def iconFile = file("icon.png")
+        if (iconFile.exists()) {
+            zos.putNextEntry(new java.util.zip.ZipEntry("icon.png"))
+            zos.write(iconFile.bytes)
+            zos.closeEntry()
+        }
+        
         zos.close()
         
         file("build/tmp/dex-classes.jar").delete()

@@ -29,16 +29,19 @@ public class CloudSaveDialog extends Dialog {
         
         closeOnBack();
         shown(this::setupUI);
+        
+        this.width = 404f;
+        this.height = 395f;
     }
     
     private void setupUI() {
         cont.clear();
-        cont.margin(10f);
+        cont.margin(30f);
         buttons.clear();
         
         buttons.button(Core.bundle.get("mod.cloudsave.close"), Icon.cancel, () -> {
             hide();
-        }).size(120, 40);
+        }).size(105, 35);
         
         if (!CloudSaveMod.getInstance().getConfigManager().isLoggedIn()) {
             showLoginUI();
@@ -56,31 +59,31 @@ public class CloudSaveDialog extends Dialog {
         loginTable.add(Core.bundle.get("mod.cloudsave.server")).left().row();
         serverField = new TextField(CloudSaveMod.getInstance().getConfigManager().getServerUrl());
         serverField.setMessageText("onex01.ru");
-        loginTable.add(serverField).width(400).row();
+        loginTable.add(serverField).width(350).height(31).row();
         
         loginTable.add().height(5).row();
         
         loginTable.add(Core.bundle.get("mod.cloudsave.username")).left().row();
         usernameField = new TextField("");
         usernameField.setMessageText(Core.bundle.get("mod.cloudsave.username.placeholder"));
-        loginTable.add(usernameField).width(400).row();
+        loginTable.add(usernameField).width(350).height(31).row();
         
         loginTable.add(Core.bundle.get("mod.cloudsave.password")).left().row();
         passwordField = new TextField("");
         passwordField.setPasswordMode(true);
         passwordField.setPasswordCharacter('\u2022');
         passwordField.setMessageText(Core.bundle.get("mod.cloudsave.password.placeholder"));
-        loginTable.add(passwordField).width(400).row();
+        loginTable.add(passwordField).width(350).height(31).row();
         
         loginTable.add().height(10).row();
         
         statusLabel = new TextField("");
         statusLabel.setDisabled(true);
-        loginTable.add(statusLabel).width(400).row();
+        loginTable.add(statusLabel).width(350).height(31).row();
         
         cont.add(loginTable).pad(10);
         
-        buttons.defaults().size(130, 40).pad(3);
+        buttons.defaults().size(105, 35).pad(3);
         
         buttons.button(Core.bundle.get("mod.cloudsave.test"), () -> {
             testConnection();
@@ -113,13 +116,13 @@ public class CloudSaveDialog extends Dialog {
         headerTable.button(Core.bundle.get("mod.cloudsave.logout"), () -> {
             CloudSaveMod.getInstance().getConfigManager().logout();
             setupUI();
-        }).size(100, 35).right().pad(5);
+        }).size(105, 35).right().pad(5);
         
         cont.add(headerTable).growX().row();
         cont.add().height(5).row();
         
         Table actionsTable = new Table();
-        actionsTable.defaults().size(130, 40).pad(3);
+        actionsTable.defaults().size(105, 35).pad(3);
         
         actionsTable.button(Core.bundle.get("mod.cloudsave.upload"), Icon.upOpen, () -> {
             uploadCurrentSave();
@@ -130,15 +133,14 @@ public class CloudSaveDialog extends Dialog {
         });
         
         cont.add(actionsTable).row();
-        cont.add().height(10).row();
+        cont.add().height(8).row();
         
         savesTable = new Table();
-        savesTable.top();
+        savesTable.top().left();
         
         ScrollPane scrollPane = new ScrollPane(savesTable);
         scrollPane.setFadeScrollBars(false);
-        scrollPane.setScrollingDisabled(true, false);
-        cont.add(scrollPane).grow().row();
+        cont.add(scrollPane).height(500).grow().row();
         
         loadSavesList();
     }
@@ -424,15 +426,14 @@ public class CloudSaveDialog extends Dialog {
                                            fileSize > 1024 ? (fileSize/1024) + "KB" : fileSize + "B";
                             String dateStr = date.length() >= 16 ? date.substring(0, 16) : date;
                             
-                            // Заголовок — только имя
-                            Table item = new Table();
-                            item.defaults().pad(2);
+                            String finalName = name;
+                            String finalDevice = device;
+                            String finalDateStr = dateStr;
+                            String finalSizeStr = sizeStr;
                             
-                            item.button(name, () -> {
-                                showSaveDetail(id, name, device, dateStr, sizeStr, item);
-                            }).width(480).height(36).left().padLeft(10);
-                            
-                            savesTable.add(item).width(490).fillX().pad(2).row();
+                            savesTable.button(name, () -> {
+                                showSaveDetail(id, finalName, finalDevice, finalDateStr, finalSizeStr);
+                            }).height(45).pad(4).growX().left().row();
                         }
                         
                     } catch (Exception e) {
@@ -675,78 +676,58 @@ public class CloudSaveDialog extends Dialog {
         }).start();
     }
     
-    private void showSaveDetail(int id, String name, String device, String dateStr, String sizeStr, Table parentItem) {
-        parentItem.clear();
+    private void showSaveDetail(int id, String name, String device, String dateStr, String sizeStr) {
+        Dialog detail = new Dialog(name);
+        detail.closeOnBack();
+        detail.setSize(531f, 400f);
         
-        // Заголовок с кнопкой свернуть
-        Table titleRow = new Table();
-        titleRow.defaults().pad(2);
+        Table content = new Table();
+        content.defaults().pad(17).left();
         
-        titleRow.button("< " + name, () -> {
-            collapseItem(parentItem, name);
-        }).width(480).height(32).left().padLeft(10);
+        content.add(Core.bundle.get("mod.cloudsave.detail.name") + ":").left();
+        content.add(name).left().row();
         
-        parentItem.add(titleRow).width(490).fillX().row();
+        content.add(Core.bundle.get("mod.cloudsave.detail.device") + ":").left();
+        content.add(device.isEmpty() ? "-" : device).left().row();
         
-        // Информация
-        Table infoTable = new Table();
-        infoTable.defaults().pad(2).left();
+        content.add(Core.bundle.get("mod.cloudsave.detail.date") + ":").left();
+        content.add(dateStr).left().row();
         
-        infoTable.add("  " + Core.bundle.get("mod.cloudsave.detail.device") + ": ").left();
-        infoTable.add(device.isEmpty() ? "-" : device).left().row();
+        content.add(Core.bundle.get("mod.cloudsave.detail.size") + ":").left();
+        content.add(sizeStr).left().row();
         
-        infoTable.add("  " + Core.bundle.get("mod.cloudsave.detail.date") + ": ").left();
-        infoTable.add(dateStr).left().row();
+        content.add().height(15).row();
         
-        infoTable.add("  " + Core.bundle.get("mod.cloudsave.detail.size") + ": ").left();
-        infoTable.add(sizeStr).left().row();
-        
-        parentItem.add(infoTable).width(490).fillX().row();
-        
-        // Поле переименования
-        Table renameRow = new Table();
-        renameRow.defaults().pad(2);
-        
-        renameRow.add("  " + Core.bundle.get("mod.cloudsave.detail.rename") + ": ").left();
+        content.add(Core.bundle.get("mod.cloudsave.detail.rename") + ":").left();
         TextField renameField = new TextField(name);
-        renameRow.add(renameField).width(200).left();
+        content.add(renameField).width(350).left().row();
         
-        parentItem.add(renameRow).width(490).fillX().row();
+        detail.cont.add(content).pad(17);
         
-        // Кнопки действий
-        Table buttonRow = new Table();
-        buttonRow.defaults().size(90, 32).pad(3);
+        detail.buttons.defaults().size(160, 35).pad(5);
         
-        buttonRow.button(Core.bundle.get("mod.cloudsave.rename"), () -> {
+        detail.buttons.button(Core.bundle.get("mod.cloudsave.rename"), () -> {
             String newName = renameField.getText().trim();
             if (!newName.isEmpty() && !newName.equals(name)) {
                 renameSave(id, newName);
             }
         });
         
-        buttonRow.button(Core.bundle.get("mod.cloudsave.download"), Icon.download, () -> {
+        detail.buttons.button(Core.bundle.get("mod.cloudsave.download"), Icon.download, () -> {
+            detail.hide();
             downloadSave(id, name);
         });
         
-        buttonRow.button(Core.bundle.get("mod.cloudsave.delete"), Icon.trash, () -> {
+        detail.buttons.button(Core.bundle.get("mod.cloudsave.delete"), Icon.trash, () -> {
+            detail.hide();
             deleteSave(id, name);
         });
         
-        parentItem.add(buttonRow).width(490).fillX().padTop(5).row();
-    }
-    
-    private void collapseItem(Table parentItem, String name) {
-        parentItem.clear();
+        detail.buttons.button(Core.bundle.get("mod.cloudsave.close"), () -> {
+            detail.hide();
+        });
         
-        Table row = new Table();
-        row.defaults().pad(2);
-        
-        row.button(name, () -> {
-            // Перезагружаем список чтобы развернуть заново
-            loadSavesList();
-        }).width(480).height(36).left().padLeft(10);
-        
-        parentItem.add(row).width(490).fillX().pad(2).row();
+        detail.show();
     }
     
     private void renameSave(int saveId, String newName) {

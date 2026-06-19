@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Mindustry Cloud Save - UI Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; display: flex; height: 100vh; overflow: hidden; }
+  
+  .controls-panel { width: 320px; min-width: 320px; background: #1a1a2e; border-right: 1px solid #333; padding: 15px; overflow-y: auto; }
+  .preview-panel { flex: 1; background: #16213e; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  
+  h2 { color: #e94560; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; }
+  h3 { color: #fff; background: #e94560; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin: 10px 0 6px; }
+  
+  .control { margin-bottom: 8px; }
+  .control label { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-bottom: 2px; }
+  .control label span { color: #e94560; font-weight: bold; }
+  .control input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #333; border-radius: 2px; }
+  .control input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #e94560; border-radius: 50%; cursor: pointer; }
+  .control input[type="color"] { width: 30px; height: 24px; border: none; background: none; cursor: pointer; vertical-align: middle; }
+  
+  .game-dialog { background: #2a2a3e; border: 2px solid #555; border-radius: 6px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+  .game-dialog-title { background: #3a3a5e; padding: 8px 12px; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .game-dialog-title .close-btn { cursor: pointer; color: #e94560; font-size: 18px; }
+  .game-dialog-body { padding: 12px; }
+  .game-dialog-footer { background: #22223a; padding: 8px 12px; display: flex; justify-content: flex-end; gap: 6px; }
+  
+  .game-btn { background: #3a3a5e; border: 1px solid #555; color: #eee; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .game-btn:hover { background: #4a4a6e; }
+  .game-btn.primary { background: #e94560; border-color: #e94560; }
+  .game-btn.danger { background: #c0392b; border-color: #c0392b; }
+  
+  .game-input { background: #1a1a2e; border: 1px solid #555; color: #eee; padding: 6px 10px; border-radius: 3px; width: 100%; font-size: 12px; }
+  
+  .save-item { display: flex; align-items: center; padding: 6px 10px; border-bottom: 1px solid #333; cursor: pointer; }
+  .save-item:hover { background: #2a2a4e; }
+  .save-item .name { flex: 1; font-size: 13px; }
+  .save-item .meta { font-size: 11px; color: #888; }
+  
+  .detail-row { display: flex; padding: 4px 0; font-size: 12px; }
+  .detail-row .label { color: #888; width: 100px; }
+  .detail-row .value { color: #eee; }
+  
+  .tab-bar { display: flex; gap: 2px; margin-bottom: 10px; }
+  .tab { padding: 6px 12px; background: #2a2a3e; border: 1px solid #444; border-radius: 4px 4px 0 0; cursor: pointer; font-size: 12px; }
+  .tab.active { background: #e94560; border-color: #e94560; }
+  
+  .section-label { color: #888; font-size: 11px; margin: 15px 0 5px; text-transform: uppercase; }
+  
+  .export-btn { position: fixed; bottom: 15px; right: 15px; background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; z-index: 100; }
+  .export-btn:hover { background: #ff6b81; }
+  
+  #export-output { display: none; position: fixed; bottom: 50px; right: 15px; background: #0f3460; border: 1px solid #e94560; border-radius: 6px; padding: 15px; max-width: 400px; max-height: 300px; overflow-y: auto; z-index: 100; font-family: monospace; font-size: 11px; white-space: pre-wrap; }
+  
+  .preview-label { color: #888; font-size: 12px; text-align: center; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="controls-panel">
+  <h2>⚙ Настройки UI</h2>
+  
+  <div class="tab-bar">
+    <div class="tab active" onclick="showTab('login',this)">Вход</div>
+    <div class="tab" onclick="showTab('saves',this)">Список</div>
+    <div class="tab" onclick="showTab('detail',this)">Детали</div>
+  </div>
+  
+  <div id="tab-login">
+    <div class="section-label">Диалог</div>
+    <div class="control">
+      <label>Ширина <span id="v-dialogW">400</span>px</label>
+      <input type="range" id="dialogW" min="300" max="700" value="400" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Высота <span id="v-dialogH">350</span>px</label>
+      <input type="range" id="dialogH" min="200" max="600" value="350" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Отступ <span id="v-padding">12</span>px</label>
+      <input type="range" id="padding" min="4" max="30" value="12" oninput="update()">
+    </div>
+    
+    <div class="section-label">Поля ввода</div>
+    <div class="control">
+      <label>Ширина <span id="v-inputW">350</span>px</label>
+      <input type="range" id="inputW" min="150" max="600" value="350" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Высота <span id="v-inputH">32</span>px</label>
+      <input type="range" id="inputH" min="24" max="50" value="32" oninput="update()">
+    </div>
+    
+    <div class="section-label">Кнопки</div>
+    <div class="control">
+      <label>Ширина <span id="v-btnW">120</span>px</label>
+      <input type="range" id="btnW" min="60" max="250" value="120" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Высота <span id="v-btnH">36</span>px</label>
+      <input type="range" id="btnH" min="24" max="60" value="36" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Шрифт <span id="v-fontSize">13</span>px</label>
+      <input type="range" id="fontSize" min="10" max="20" value="13" oninput="update()">
+    </div>
+    
+    <div class="section-label">Цвета</div>
+    <div class="control">
+      <label>Фон диалога <input type="color" id="bgDialog" value="#2a2a3e" onchange="update()"></label>
+    </div>
+    <div class="control">
+      <label>Заголовок <input type="color" id="bgBtn" value="#3a3a5e" onchange="update()"></label>
+    </div>
+    <div class="control">
+      <label>Акцент <input type="color" id="accent" value="#e94560" onchange="update()"></label>
+    </div>
+    <div class="control">
+      <label>Текст <input type="color" id="textColor" value="#eeeeee" onchange="update()"></label>
+    </div>
+  </div>
+  
+  <div id="tab-saves" style="display:none">
+    <div class="section-label">Список сохранений</div>
+    <div class="control">
+      <label>Макс. высота <span id="v-listH">250</span>px</label>
+      <input type="range" id="listH" min="80" max="500" value="250" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Высота строки <span id="v-rowH">40</span>px</label>
+      <input type="range" id="rowH" min="24" max="70" value="40" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Отступ строки <span id="v-rowPad">4</span>px</label>
+      <input type="range" id="rowPad" min="0" max="15" value="4" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Ширина имени <span id="v-nameW">200</span>px</label>
+      <input type="range" id="nameW" min="80" max="400" value="200" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Строк в превью <span id="v-rowCount">5</span></label>
+      <input type="range" id="rowCount" min="1" max="15" value="5" oninput="update()">
+    </div>
+  </div>
+  
+  <div id="tab-detail" style="display:none">
+    <div class="section-label">Диалог деталей</div>
+    <div class="control">
+      <label>Ширина <span id="v-detailW">420</span>px</label>
+      <input type="range" id="detailW" min="250" max="600" value="420" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Отступ полей <span id="v-detailPad">8</span>px</label>
+      <input type="range" id="detailPad" min="2" max="20" value="8" oninput="update()">
+    </div>
+    <div class="control">
+      <label>Ширина кнопок <span id="v-detailBtnW">110</span>px</label>
+      <input type="range" id="detailBtnW" min="60" max="200" value="110" oninput="update()">
+    </div>
+  </div>
+</div>
+
+<div class="preview-panel" id="previewPanel">
+  <div class="preview-label">— Превью —</div>
+  <div id="preview"></div>
+</div>
+
+<button class="export-btn" onclick="exportConfig()">📋 Экспорт</button>
+<div id="export-output"></div>
+
+<script>
+function val(id) { return document.getElementById(id).value; }
+function setV(id) { 
+  var el = document.getElementById('v-' + id); 
+  if (el) el.textContent = val(id);
+  var el2 = document.getElementById('v.' + id);
+  if (el2) el2.textContent = val(id);
+}
+
+function showTab(name, tabEl) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('[id^="tab-"]').forEach(function(t) { t.style.display = 'none'; });
+  tabEl.classList.add('active');
+  document.getElementById('tab-' + name).style.display = 'block';
+}
+
+function update() {
+  ['dialogW','dialogH','padding','inputW','inputH','btnW','btnH','fontSize','listH','rowH','rowPad','nameW','rowCount','detailW','detailPad','detailBtnW'].forEach(setV);
+  render();
+}
+
+function render() {
+  var p = {
+    dialogW: +val('dialogW'), dialogH: +val('dialogH'), padding: +val('padding'),
+    inputW: +val('inputW'), inputH: +val('inputH'),
+    btnW: +val('btnW'), btnH: +val('btnH'), fontSize: +val('fontSize'),
+    bgDialog: val('bgDialog'), bgBtn: val('bgBtn'), accent: val('accent'), textColor: val('textColor'),
+    listH: +val('listH'), rowH: +val('rowH'), rowPad: +val('rowPad'), nameW: +val('nameW'), rowCount: +val('rowCount'),
+    detailW: +val('detailW'), detailPad: +val('detailPad'), detailBtnW: +val('detailBtnW')
+  };
+
+  var saves = [
+    {name:'full-save-username', device:'Linux-amd64', date:'2026-06-19 09:53', size:'878KB'},
+    {name:'campaign-backup', device:'Android', date:'2026-06-18 14:22', size:'1.2MB'},
+    {name:'multiplayer-serpulo', device:'Windows', date:'2026-06-17 21:10', size:'456KB'},
+    {name:'test-world', device:'Linux-amd64', date:'2026-06-16 11:05', size:'89KB'},
+    {name:'errek-sector-220', device:'Android', date:'2026-06-15 18:33', size:'2.1MB'},
+  ];
+
+  var html = '';
+  
+  // === LOGIN DIALOG ===
+  html += '<div class="game-dialog" style="width:' + p.dialogW + 'px; background:' + p.bgDialog + '; font-size:' + p.fontSize + 'px; color:' + p.textColor + '">';
+  html += '<div class="game-dialog-title" style="background:' + p.bgBtn + '"><span>Cloud Saves</span><span class="close-btn">✕</span></div>';
+  html += '<div class="game-dialog-body" style="padding:' + p.padding + 'px">';
+  
+  // Server field
+  html += '<div style="margin-bottom:6px;font-size:12px;color:#aaa">Сервер API</div>';
+  html += '<input class="game-input" value="domain.com" style="width:' + p.inputW + 'px;height:' + p.inputH + 'px;margin-bottom:10px">';
+  
+  // Username
+  html += '<div style="margin-bottom:6px;font-size:12px;color:#aaa">Имя пользователя</div>';
+  html += '<input class="game-input" value="" placeholder="Введите логин" style="width:' + p.inputW + 'px;height:' + p.inputH + 'px;margin-bottom:10px">';
+  
+  // Password
+  html += '<div style="margin-bottom:6px;font-size:12px;color:#aaa">Пароль</div>';
+  html += '<input class="game-input" type="password" value="" placeholder="Введите пароль" style="width:' + p.inputW + 'px;height:' + p.inputH + 'px;margin-bottom:10px">';
+  
+  // Status
+  html += '<div style="background:#1a1a2e;border:1px solid #444;padding:6px 10px;border-radius:3px;font-size:12px;color:#888;width:' + p.inputW + 'px;margin-bottom:10px">Статус...</div>';
+  
+  // Buttons
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  html += '<button class="game-btn" style="width:' + p.btnW + 'px;height:' + p.btnH + 'px;font-size:' + (p.fontSize-1) + 'px">Тест</button>';
+  html += '<button class="game-btn primary" style="width:' + p.btnW + 'px;height:' + p.btnH + 'px;font-size:' + (p.fontSize-1) + 'px">Регистрация</button>';
+  html += '<button class="game-btn primary" style="width:' + p.btnW + 'px;height:' + p.btnH + 'px;font-size:' + (p.fontSize-1) + 'px">Вход</button>';
+  html += '</div>';
+  
+  html += '</div>'; // body
+  html += '<div class="game-dialog-footer"><button class="game-btn danger" style="font-size:' + (p.fontSize-1) + 'px">Закрыть</button></div>';
+  html += '</div>';
+  
+  // === SAVES LIST ===
+  html += '<div style="margin-top:15px">';
+  html += '<div class="game-dialog" style="width:' + (p.dialogW + 40) + 'px; background:' + p.bgDialog + '; font-size:' + p.fontSize + 'px; color:' + p.textColor + '">';
+  html += '<div class="game-dialog-title" style="background:' + p.bgBtn + '"><span>Cloud Saves</span><span class="close-btn">✕</span></div>';
+  html += '<div class="game-dialog-body" style="padding:' + p.padding + 'px">';
+  
+  // Header
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  html += '<span>User: UserName</span>';
+  html += '<button class="game-btn" style="font-size:' + (p.fontSize-2) + 'px;height:30px">Выйти</button>';
+  html += '</div>';
+  
+  // Actions
+  html += '<div style="display:flex;gap:6px;margin-bottom:10px">';
+  html += '<button class="game-btn" style="font-size:' + (p.fontSize-2) + 'px;height:34px">⬆ Загрузить</button>';
+  html += '<button class="game-btn" style="font-size:' + (p.fontSize-2) + 'px;height:34px">🔄 Обновить</button>';
+  html += '</div>';
+  
+  // Saves list
+  html += '<div style="max-height:' + p.listH + 'px;overflow-y:auto;border:1px solid #444;border-radius:4px">';
+  for (var i = 0; i < p.rowCount && i < saves.length; i++) {
+    var s = saves[i];
+    html += '<div class="save-item" style="height:' + p.rowH + 'px;padding:' + p.rowPad + 'px 10px">';
+    html += '<span class="name" style="width:' + p.nameW + 'px">' + s.name + '</span>';
+    html += '<span class="meta">' + s.device + ' | ' + s.size + ' | ' + s.date + '</span>';
+    html += '</div>';
+  }
+  html += '</div>';
+  
+  html += '</div>'; // body
+  html += '<div class="game-dialog-footer"><button class="game-btn danger" style="font-size:' + (p.fontSize-1) + 'px">Закрыть</button></div>';
+  html += '</div></div>';
+  
+  // === DETAIL DIALOG ===
+  html += '<div style="margin-top:15px">';
+  html += '<div class="game-dialog" style="width:' + p.detailW + 'px; background:' + p.bgDialog + '; font-size:' + p.fontSize + 'px; color:' + p.textColor + '">';
+  html += '<div class="game-dialog-title" style="background:' + p.bgBtn + '"><span>full-save-UserName</span></div>';
+  html += '<div class="game-dialog-body" style="padding:' + p.detailPad + 'px">';
+  
+  var fields = [
+    ['Имя:', 'full-save-UserName'],
+    ['Устройство:', 'Linux-amd64'],
+    ['Дата:', '2026-06-19 09:53'],
+    ['Размер:', '878KB'],
+  ];
+  for (var j = 0; j < fields.length; j++) {
+    html += '<div class="detail-row"><span class="label">' + fields[j][0] + '</span><span class="value">' + fields[j][1] + '</span></div>';
+  }
+  
+  html += '<div style="margin:10px 0"><div style="font-size:12px;color:#aaa;margin-bottom:4px">Новое имя:</div><input class="game-input" value="full-save-UserName" style="width:100%"></div>';
+  
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  html += '<button class="game-btn" style="width:' + p.detailBtnW + 'px;height:34px;font-size:' + (p.fontSize-2) + 'px">Переименовать</button>';
+  html += '<button class="game-btn primary" style="width:' + p.detailBtnW + 'px;height:34px;font-size:' + (p.fontSize-2) + 'px">⬇ Скачать</button>';
+  html += '<button class="game-btn danger" style="width:' + p.detailBtnW + 'px;height:34px;font-size:' + (p.fontSize-2) + 'px">🗑 Удалить</button>';
+  html += '</div>';
+  
+  html += '</div>';
+  html += '<div class="game-dialog-footer"><button class="game-btn" style="font-size:' + (p.fontSize-1) + 'px">Закрыть</button></div>';
+  html += '</div></div>';
+  
+  document.getElementById('preview').innerHTML = html;
+}
+
+function exportConfig() {
+  var p = {};
+  ['dialogW','dialogH','padding','inputW','inputH','btnW','btnH','fontSize','listH','rowH','rowPad','nameW','detailW','detailPad','detailBtnW'].forEach(function(k) {
+    p[k] = +val(k);
+  });
+  p.bgDialog = val('bgDialog');
+  p.bgBtn = val('bgBtn');
+  p.accent = val('accent');
+  p.textColor = val('textColor');
+  
+  var out = document.getElementById('export-output');
+  out.style.display = 'block';
+  out.textContent = JSON.stringify(p, null, 2);
+}
+
+update();
+</script>
+</body>
+</html>
