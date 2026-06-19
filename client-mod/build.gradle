@@ -7,8 +7,8 @@ version = '1.0.0'
 
 repositories {
     mavenCentral()
+    google()
     maven { url 'https://jitpack.io' }
-    // Альтернативный репозиторий с прекомпилированными версиями Mindustry
     maven { url 'https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository' }
 }
 
@@ -16,8 +16,11 @@ ext {
     mindustryVersion = 'v145'
 }
 
+configurations { d8 }
+
 dependencies {
     compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
+    d8 'com.android.tools:r8:8.2.33'
 }
 
 java {
@@ -34,39 +37,70 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 17
 }
 
-// Задача для Desktop
-jar {
-    archiveFileName = "cloud-save-mod.jar"
-    
-    from(rootProject.file("mod.hjson")) {
-        into ""
-    }
-    
-    from("bundles") {
-        into "bundles"
-    }
-    
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    
-    manifest {
-        attributes 'Implementation-Title': archiveFileName,
-                   'Implementation-Version': archiveVersion
-    }
-}
+jar.enabled = false
 
-// Задача для Android (deploy)
-task deploy(type: Jar, dependsOn: jar) {
-    archiveFileName = "cloud-save-mod-android.jar"
+task universalJar(dependsOn: compileJava) {
+    outputs.file file("build/libs/cloud-save-mod.jar")
     
-    from sourceSets.main.output
-    
-    from(rootProject.file("mod.hjson")) {
-        into ""
+    doLast {
+        mkdir("build/tmp")
+        
+        ant.jar(destfile: file("build/tmp/dex-classes.jar")) {
+            fileset(dir: file("build/classes/java/main"))
+        }
+        
+        def cmd = [
+            'java', '-cp', configurations.d8.asPath,
+            'com.android.tools.r8.D8',
+            '--output', file("build/tmp").absolutePath,
+            file("build/tmp/dex-classes.jar").absolutePath
+        ]
+        def proc = new ProcessBuilder(cmd)
+            .directory(projectDir)
+            .redirectErrorStream(true)
+            .start()
+        def output = proc.inputStream.text
+        def exitCode = proc.waitFor()
+        if (exitCode != 0) {
+            throw new GradleException("D8 failed (exit ${exitCode}): ${output}")
+        }
+        
+        def jarFile = file("build/libs/cloud-save-mod.jar")
+        def zos = new java.util.zip.ZipOutputStream(new FileOutputStream(jarFile))
+        
+        file("build/classes/java/main").eachFileRecurse { f ->
+            if (f.isFile()) {
+                def entryName = file("build/classes/java/main").toPath()
+                    .relativize(f.toPath()).toString().replace('\\', '/')
+                zos.putNextEntry(new java.util.zip.ZipEntry(entryName))
+                zos.write(f.bytes)
+                zos.closeEntry()
+            }
+        }
+        
+        zos.putNextEntry(new java.util.zip.ZipEntry("classes.dex"))
+        zos.write(file("build/tmp/classes.dex").bytes)
+        zos.closeEntry()
+        
+        zos.putNextEntry(new java.util.zip.ZipEntry("mod.hjson"))
+        zos.write(rootProject.file("mod.hjson").bytes)
+        zos.closeEntry()
+        
+        file("bundles").eachFileRecurse { f ->
+            if (f.isFile()) {
+                def entryName = projectDir.toPath().relativize(f.toPath()).toString().replace('\\', '/')
+                zos.putNextEntry(new java.util.zip.ZipEntry(entryName))
+                zos.write(f.bytes)
+                zos.closeEntry()
+            }
+        }
+        
+        zos.close()
+        
+        file("build/tmp/dex-classes.jar").delete()
+        file("build/tmp/classes.dex").delete()
+        file("build/tmp").deleteDir()
+        
+        println "Universal JAR: ${jarFile.absolutePath}"
     }
-    
-    from("bundles") {
-        into "bundles"
-    }
-    
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

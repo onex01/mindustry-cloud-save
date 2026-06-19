@@ -119,59 +119,67 @@ app.post('/api/auth/login', (req, res) => {
 app.post('/api/saves', authenticateToken, upload.single('saveFile'), (req, res) => {
     const userId = req.user.id;
     
-    // Проверяем, какой формат данных пришёл
+    // Генерируем структуру каталогов: uploads/<user_id>/<folder>/<YYYY-MM-DD>/<HH-mm-ss>.zip
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+    
+    const folder = req.body.folder || '';
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    const userDir = path.join(uploadDir, String(userId));
+    const folderDir = folder ? path.join(userDir, folder) : userDir;
+    const dateDir = path.join(folderDir, dateStr);
+    
+    if (!fs.existsSync(dateDir)) {
+        fs.mkdirSync(dateDir, { recursive: true });
+    }
+    
+    const savedFilename = `${timeStr}.zip`;
+    const relativePath = folder 
+        ? `${userId}/${folder}/${dateStr}/${savedFilename}`
+        : `${userId}/${dateStr}/${savedFilename}`;
+    
     if (req.file) {
-        // Старый формат: multipart/form-data
         const { name } = req.body;
-        const filename = req.file.filename;
-        const fileSize = req.file.size;
+        const device = req.body.device || '';
+        const filePath = path.join(dateDir, savedFilename);
+        
+        fs.renameSync(req.file.path, filePath);
         
         db.run(
-            `INSERT INTO saves (user_id, name, filename, file_size) VALUES (?, ?, ?, ?)`,
-            [userId, name || 'Без названия', filename, fileSize],
+            `INSERT INTO saves (user_id, name, filename, file_path, file_size, folder, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, name || 'Без названия', savedFilename, relativePath, req.file.size, folder, device],
             function(err) {
                 if (err) {
+                    fs.unlinkSync(filePath);
                     return res.status(500).json({ error: 'Ошибка при сохранении метаданных в БД' });
                 }
                 res.status(201).json({ 
                     message: 'Сохранение успешно загружено', 
                     saveId: this.lastID, 
-                    filename: filename 
+                    filename: savedFilename 
                 });
             }
         );
     } else if (req.body.content) {
-        // Новый формат: JSON с base64
-        const { name, filename, content } = req.body;
+        const { name, content } = req.body;
+        const device = req.body.device || '';
         
         if (!content) {
             return res.status(400).json({ error: 'Поле content обязательно' });
         }
         
         try {
-            // Декодируем base64
             const fileBuffer = Buffer.from(content, 'base64');
+            const filePath = path.join(dateDir, savedFilename);
             
-            // Генерируем уникальное имя файла
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            const savedFilename = uniqueSuffix + '-' + (filename || 'save.msav');
-            
-            const uploadDir = process.env.UPLOAD_DIR || './uploads';
-            if (!fs.existsSync(uploadDir)) {
-                fs.mkdirSync(uploadDir, { recursive: true });
-            }
-            
-            const filePath = path.join(uploadDir, savedFilename);
-            
-            // Сохраняем файл
             fs.writeFileSync(filePath, fileBuffer);
             
             db.run(
-                `INSERT INTO saves (user_id, name, filename, file_size) VALUES (?, ?, ?, ?)`,
-                [userId, name || 'Без названия', savedFilename, fileBuffer.length],
+                `INSERT INTO saves (user_id, name, filename, file_path, file_size, folder, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [userId, name || 'Без названия', savedFilename, relativePath, fileBuffer.length, folder, device],
                 function(err) {
                     if (err) {
-                        // Удаляем файл, если не удалось записать в БД
                         fs.unlinkSync(filePath);
                         return res.status(500).json({ error: 'Ошибка при сохранении метаданных в БД' });
                     }
@@ -190,10 +198,36 @@ app.post('/api/saves', authenticateToken, upload.single('saveFile'), (req, res) 
     }
 });
 
-// 4. Получение списка сохранений пользователя (Требует авторизации)
+// 4. Получение списка папок пользователя
+app.get('/api/folders', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+    db.all(`SELECT DISTINCT folder FROM saves WHERE user_id = ? ORDER BY folder`, [userId], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: 'Ошибка при получении списка папок' });
+        }
+        const folders = rows.map(r => r.folder || '').filter(f => f !== '');
+        res.json({ folders });
+    });
+});
+
+// 5. Получение списка сохранений пользователя (с фильтрацией по папке)
 app.get('/api/saves', authenticateToken, (req, res) => {
     const userId = req.user.id;
-    db.all(`SELECT id, name, file_size, created_at FROM saves WHERE user_id = ? ORDER BY created_at DESC`, [userId], (err, rows) => {
+    const folder = req.query.folder || '';
+    
+    let query = 'SELECT id, name, file_size, folder, device, created_at FROM saves WHERE user_id = ?';
+    let params = [userId];
+    
+    if (folder) {
+        query += ' AND folder = ?';
+        params.push(folder);
+    } else {
+        query += " AND (folder = '' OR folder IS NULL)";
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    db.all(query, params, (err, rows) => {
         if (err) {
             return res.status(500).json({ error: 'Ошибка при получении списка сохранений' });
         }
@@ -206,24 +240,81 @@ app.get('/api/saves/:id/download', authenticateToken, (req, res) => {
     const saveId = req.params.id;
     const userId = req.user.id;
 
-    db.get(`SELECT filename, name FROM saves WHERE id = ? AND user_id = ?`, [saveId, userId], (err, row) => {
+    db.get(`SELECT filename, name, file_path FROM saves WHERE id = ? AND user_id = ?`, [saveId, userId], (err, row) => {
         if (err || !row) {
             return res.status(404).json({ error: 'Сохранение не найдено или доступ запрещен' });
         }
 
-        const filePath = path.join(__dirname, '../uploads', row.filename);
+        // Используем file_path если есть, иначе fallback на старую структуру
+        let filePath;
+        if (row.file_path) {
+            filePath = path.join(process.env.UPLOAD_DIR || './uploads', row.file_path);
+        } else {
+            filePath = path.join(__dirname, '../uploads', row.filename);
+        }
         
-        // Проверяем, существует ли файл физически
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'Файл был удален с сервера' });
         }
 
-        // Отправляем файл с правильным заголовком для скачивания
-        res.download(filePath, `${row.name}.msav`, (err) => {
+        res.download(filePath, `${row.name}.zip`, (err) => {
             if (err) {
                 console.error('Ошибка при отправке файла:', err);
                 res.status(500).json({ error: 'Ошибка при скачивании файла' });
             }
+        });
+    });
+});
+
+// 6. Переименование сохранения (Требует авторизации)
+app.put('/api/saves/:id', authenticateToken, (req, res) => {
+    const saveId = req.params.id;
+    const userId = req.user.id;
+    const { name } = req.body;
+    
+    if (!name || name.trim().length === 0) {
+        return res.status(400).json({ error: 'Имя обязательно' });
+    }
+    
+    db.run(`UPDATE saves SET name = ? WHERE id = ? AND user_id = ?`, [name.trim(), saveId, userId], function(err) {
+        if (err) {
+            return res.status(500).json({ error: 'Ошибка при переименовании' });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'Сохранение не найдено' });
+        }
+        res.json({ message: 'Сохранение переименовано' });
+    });
+});
+
+// 7. Удаление сохранения (Требует авторизации)
+app.delete('/api/saves/:id', authenticateToken, (req, res) => {
+    const saveId = req.params.id;
+    const userId = req.user.id;
+
+    db.get(`SELECT filename, file_path FROM saves WHERE id = ? AND user_id = ?`, [saveId, userId], (err, row) => {
+        if (err || !row) {
+            return res.status(404).json({ error: 'Сохранение не найдено или доступ запрещен' });
+        }
+
+        // Удаляем физический файл
+        let filePath;
+        if (row.file_path) {
+            filePath = path.join(process.env.UPLOAD_DIR || './uploads', row.file_path);
+        } else {
+            filePath = path.join(__dirname, '../uploads', row.filename);
+        }
+
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+
+        // Удаляем запись из БД
+        db.run(`DELETE FROM saves WHERE id = ? AND user_id = ?`, [saveId, userId], function(err) {
+            if (err) {
+                return res.status(500).json({ error: 'Ошибка при удалении сохранения' });
+            }
+            res.json({ message: 'Сохранение успешно удалено' });
         });
     });
 });

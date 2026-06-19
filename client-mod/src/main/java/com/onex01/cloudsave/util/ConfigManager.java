@@ -15,6 +15,7 @@ public class ConfigManager {
     private String serverUrl = "http://localhost:3000";
     private String authToken = null;
     private String username = null;
+    private boolean debugMode = false;
     
     public ConfigManager() {
         loadConfig();
@@ -36,6 +37,7 @@ public class ConfigManager {
                 serverUrl = extractValue(json, "serverUrl", "http://localhost:3000");
                 authToken = extractValue(json, "authToken", null);
                 username = extractValue(json, "username", null);
+                debugMode = "true".equals(extractValue(json, "debugMode", "false"));
                 
                 Log.info("[CloudSave] Конфигурация загружена. Сервер: " + serverUrl);
             } catch (IOException e) {
@@ -48,7 +50,7 @@ public class ConfigManager {
     }
     
     private String extractValue(String json, String key, String defaultValue) {
-        String searchKey = "\"" + key + "\":\"";
+        String searchKey = "\"" + key + "\": \"";
         int startIndex = json.indexOf(searchKey);
         if (startIndex == -1) return defaultValue;
         
@@ -67,7 +69,8 @@ public class ConfigManager {
             String json = "{\n";
             json += "  \"serverUrl\": \"" + (serverUrl != null ? serverUrl : "") + "\",\n";
             json += "  \"authToken\": \"" + (authToken != null ? authToken : "null") + "\",\n";
-            json += "  \"username\": \"" + (username != null ? username : "null") + "\"\n";
+            json += "  \"username\": \"" + (username != null ? username : "null") + "\",\n";
+            json += "  \"debugMode\": \"" + debugMode + "\"\n";
             json += "}";
             
             writer.write(json);
@@ -117,6 +120,15 @@ public class ConfigManager {
     
     public boolean isLoggedIn() {
         return authToken != null && !authToken.isEmpty() && !authToken.equals("null");
+    }
+    
+    public boolean isDebugMode() {
+        return debugMode;
+    }
+    
+    public void setDebugMode(boolean debug) {
+        this.debugMode = debug;
+        saveConfig();
     }
     
     public void logout() {

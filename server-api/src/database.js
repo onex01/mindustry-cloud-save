@@ -28,11 +28,26 @@ function initTables() {
             user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             filename TEXT NOT NULL,
+            file_path TEXT,
             file_size INTEGER,
+            folder TEXT DEFAULT '',
+            device TEXT DEFAULT '',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )`);
         console.log('Таблицы базы данных проверены/созданы.');
+        
+        // Миграция: добавляем колонки folder и device если их нет
+        db.run(`ALTER TABLE saves ADD COLUMN folder TEXT DEFAULT ''`, [], (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+                console.error('Ошибка миграции folder:', err.message);
+            }
+        });
+        db.run(`ALTER TABLE saves ADD COLUMN device TEXT DEFAULT ''`, [], (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+                console.error('Ошибка миграции device:', err.message);
+            }
+        });
     });
 }
 
